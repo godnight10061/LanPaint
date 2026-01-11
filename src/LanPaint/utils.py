@@ -222,7 +222,6 @@ class StochasticHarmonicOscillator:
         self.A = A
         self.C = C
         self.D = D
-        self.Delta = 1 - 4 * A / Gamma
     def sig11(self, gamma_t, delta):
         return 1 - torch.exp(-gamma_t) + gamma_t**2 * exp_1mcosh_GD(gamma_t, delta) + exp_sinh_sqrtD(gamma_t, delta)
     def sig22(self, gamma_t, delta):
@@ -239,15 +238,35 @@ class StochasticHarmonicOscillator:
             tuple: (y(t), v(t))
         """
 
-        dummyzero = y0.new_zeros(1) # convert scalar to tensor with same device and dtype as y0
-        Delta = self.Delta + dummyzero
-        Gamma_hat = self.Gamma * t + dummyzero
-        A = self.A + dummyzero
-        C = self.C + dummyzero
-        D = self.D + dummyzero
-        Gamma = self.Gamma + dummyzero
-        zeta_1 = zeta1( Gamma_hat, Delta) 
-        zeta_2 = zeta2( Gamma_hat, Delta)
+        orig_dtype = y0.dtype
+        compute_dtype = torch.float32 if y0.dtype in (torch.float16, torch.bfloat16) else y0.dtype
+
+        def as_tensor(value):  # type: ignore[no-untyped-def]
+            return torch.as_tensor(value, device=y0.device, dtype=compute_dtype)
+
+        finite_max = 1e15
+        eps = 1e-6
+
+        def sanitize(value, *, nan: float = 0.0, posinf: float = finite_max, neginf: float = -finite_max):  # type: ignore[no-untyped-def]
+            tensor = torch.nan_to_num(as_tensor(value), nan=nan, posinf=posinf, neginf=neginf)
+            return torch.clamp(tensor, min=neginf, max=posinf)
+
+        y0 = sanitize(y0)
+        t = sanitize(t, nan=0.0, posinf=finite_max, neginf=0.0).clamp_min(0.0)
+
+        Gamma = sanitize(self.Gamma, nan=eps, posinf=finite_max, neginf=eps).clamp_min(eps)
+        A = sanitize(self.A)
+        C = sanitize(self.C)
+        D = sanitize(self.D)
+
+        if v0 is not None:
+            v0 = sanitize(v0)
+
+        Delta = 1 - 4 * A / Gamma
+        Gamma_hat = Gamma * t
+
+        zeta_1 = zeta1(Gamma_hat, Delta)
+        zeta_2 = zeta2(Gamma_hat, Delta)
         EE = 1 - Gamma_hat * zeta_2
 
         if v0 is None:
@@ -261,22 +280,23 @@ class StochasticHarmonicOscillator:
 
         cov_yy = D**2 * t * self.sig22(Gamma_hat, Delta)
         cov_vv = D**2 * self.sig11(Gamma_hat, Delta) / 2
-        cov_yv = (zeta2(Gamma_hat, Delta) * Gamma_hat * D ) **2 / 2 / (Gamma ** 0.5)
+        cov_yv = (zeta_2 * Gamma_hat * D) ** 2 / 2 / (Gamma ** 0.5)
 
         # sample new position and velocity with multivariate normal distribution
 
+        y_mean = torch.nan_to_num(y_mean, nan=0.0, posinf=finite_max, neginf=-finite_max)
+        v_mean = torch.nan_to_num(v_mean, nan=0.0, posinf=finite_max, neginf=-finite_max)
+        cov_yy = torch.nan_to_num(cov_yy, nan=0.0, posinf=finite_max, neginf=0.0)
+        cov_vv = torch.nan_to_num(cov_vv, nan=0.0, posinf=finite_max, neginf=0.0)
+        cov_yv = torch.nan_to_num(cov_yv, nan=0.0, posinf=finite_max, neginf=-finite_max)
+
         batch_shape = y0.shape
-        cov_matrix = torch.zeros(*batch_shape, 2, 2, device=y0.device, dtype=y0.dtype)
-        cov_matrix[..., 0, 0] = cov_yy
-        cov_matrix[..., 0, 1] = cov_yv
-        cov_matrix[..., 1, 0] = cov_yv  # symmetric
-        cov_matrix[..., 1, 1] = cov_vv
 
 
 
         # Compute the Cholesky decomposition to get scale_tril
         #scale_tril = torch.linalg.cholesky(cov_matrix)
-        scale_tril = torch.zeros(*batch_shape, 2, 2, device=y0.device, dtype=y0.dtype)
+        scale_tril = torch.zeros(*batch_shape, 2, 2, device=y0.device, dtype=compute_dtype)
         tol = 1e-8
         cov_yy = torch.clamp( cov_yy, min = tol )
         sd_yy = torch.sqrt( cov_yy )
@@ -286,10 +306,11 @@ class StochasticHarmonicOscillator:
         scale_tril[..., 0, 1] = 0.
         scale_tril[..., 1, 0] = cov_yv * inv_sd_yy
         scale_tril[..., 1, 1] = torch.clamp( cov_vv - cov_yv**2 / cov_yy, min = tol ) ** 0.5
-        # check if it matches torch.linalg.
-        #assert torch.allclose(torch.linalg.cholesky(cov_matrix), scale_tril, atol = 1e-4, rtol = 1e-4 )
+        scale_tril = torch.nan_to_num(scale_tril, nan=0.0, posinf=finite_max, neginf=-finite_max)
+        scale_tril[..., 0, 0] = torch.clamp(scale_tril[..., 0, 0], min=tol)
+        scale_tril[..., 1, 1] = torch.clamp(scale_tril[..., 1, 1], min=tol)
         # Sample correlated noise from multivariate normal
-        mean = torch.zeros(*batch_shape, 2, device=y0.device, dtype=y0.dtype)
+        mean = torch.zeros(*batch_shape, 2, device=y0.device, dtype=compute_dtype)
         mean[..., 0] = y_mean
         mean[..., 1] = v_mean
         new_yv = torch.distributions.MultivariateNormal(
@@ -297,4 +318,4 @@ class StochasticHarmonicOscillator:
             scale_tril=scale_tril
         ).sample()
 
-        return new_yv[...,0], new_yv[...,1]
+        return new_yv[..., 0].to(dtype=orig_dtype), new_yv[..., 1].to(dtype=orig_dtype)
