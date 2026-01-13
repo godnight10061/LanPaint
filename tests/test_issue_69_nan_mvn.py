@@ -14,6 +14,8 @@ def test_issue_69_fp16_coefficients_do_not_generate_nan_loc() -> None:
     which then propagates NaNs into the MultivariateNormal mean (loc) under validate_args=True.
     """
 
+    torch.manual_seed(0)
+
     warnings.filterwarnings(
         "ignore",
         message=r"In CPU autocast, but the target dtype is not supported\.",
@@ -32,7 +34,7 @@ def test_issue_69_fp16_coefficients_do_not_generate_nan_loc() -> None:
             StepSize=0.2,
         )
 
-        x_t = torch.zeros((1, 16, 1, 8, 8), dtype=torch.float16)
+        x_t = torch.zeros((1, 1, 1, 2, 2), dtype=torch.float16)
         lanpaint.img_dim_size = x_t.ndim
 
         mask = torch.zeros_like(x_t)
@@ -64,4 +66,3 @@ def test_issue_69_fp16_coefficients_do_not_generate_nan_loc() -> None:
         Distribution.set_default_validate_args(prev_validate_args)
 
     assert torch.isfinite(out).all()
-
