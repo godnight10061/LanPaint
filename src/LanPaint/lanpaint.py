@@ -86,54 +86,72 @@ class LanPaint():
 
     def langevin_dynamics(self, x_t, score, mask, step_size, current_times, sigma_x=1, sigma_y=0, args=None):
         # prepare the step size and time parameters
-        with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
-            step_sizes = self.prepare_step_size(current_times, step_size, sigma_x, sigma_y)
+        original_dtype = x_t.dtype
+        compute_dtype = torch.float32 if original_dtype in (torch.float16, torch.bfloat16) else original_dtype
+        device_type = x_t.device.type
+
+        with torch.autocast(device_type=device_type, enabled=False):
+            x_t_fp = x_t.to(compute_dtype)
+            mask_fp = mask.to(compute_dtype)
+            step_size_fp = step_size.to(compute_dtype)
+            sigma_x_fp = sigma_x.to(compute_dtype)
+            sigma_y_fp = sigma_y.to(compute_dtype)
+            sigma_fp, abt_fp, flow_t_fp = (t.to(compute_dtype) for t in current_times)
+
+            step_sizes = self.prepare_step_size(
+                current_times=(sigma_fp, abt_fp, flow_t_fp),
+                step_size=step_size_fp,
+                sigma_x=sigma_x_fp,
+                sigma_y=sigma_y_fp,
+            )
             sigma, abt, dtx, dty, Gamma_x, Gamma_y, A_x, A_y, D_x, D_y = step_sizes
-        # print('mask',mask.device)
-        if torch.mean(dtx) <= 0.:
-            return x_t, args
-        # -------------------------------------------------------------------------
-        # Compute the Langevin dynamics update in variance perserving notation
-        # -------------------------------------------------------------------------
-        #x0 = self.x0_evalutation(x_t, score, sigma, args)
-        #C = abt**0.5 * x0 / (1-abt)
-        A = A_x * (1-mask) + A_y * mask
-        D = D_x * (1-mask) + D_y * mask
-        dt = dtx * (1-mask) + dty * mask
-        Gamma = Gamma_x * (1-mask) + Gamma_y * mask
+            # print('mask',mask.device)
+            if torch.mean(dtx) <= 0.:
+                return x_t, args
+            # -------------------------------------------------------------------------
+            # Compute the Langevin dynamics update in variance perserving notation
+            # -------------------------------------------------------------------------
+            #x0 = self.x0_evalutation(x_t, score, sigma, args)
+            #C = abt**0.5 * x0 / (1-abt)
+            A = A_x * (1 - mask_fp) + A_y * mask_fp
+            D = D_x * (1 - mask_fp) + D_y * mask_fp
+            dt = dtx * (1 - mask_fp) + dty * mask_fp
+            Gamma = Gamma_x * (1 - mask_fp) + Gamma_y * mask_fp
 
+            def Coef_C(x_t_local):
+                x0 = self.x0_evalutation(x_t_local, score, sigma, args)
+                C = (abt**0.5 * x0 - x_t_local) / (1 - abt) + A * x_t_local
+                return C
 
-        def Coef_C(x_t):
-            x0 = self.x0_evalutation(x_t, score, sigma, args)
-            C = (abt**0.5 * x0  - x_t )/ (1-abt) + A * x_t
-            return C
-        def advance_time(x_t, v, dt, Gamma, A, C, D):
-            dtype = x_t.dtype
-            with torch.autocast(device_type=x_t.device.type, dtype=torch.float32):
-                osc = StochasticHarmonicOscillator(Gamma, A, C, D )
-                x_t, v = osc.dynamics(x_t, v, dt )
-            x_t = x_t.to(dtype)
-            v = v.to(dtype)
-            return x_t, v
-        if args is None:
-            #v = torch.zeros_like(x_t)
-            v = None
-            C = Coef_C(x_t)
-            #print(torch.squeeze(dtx), torch.squeeze(dty))
-            x_t, v = advance_time(x_t, v, dt, Gamma, A, C, D)
-        else:
-            v, C = args
+            def advance_time(x_t, v, dt, Gamma, A, C, D):
+                osc = StochasticHarmonicOscillator(Gamma, A, C, D)
+                x_next, v_next = osc.dynamics(x_t, v, dt)
+                return x_next, v_next
 
-            x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
+            if args is None:
+                #v = torch.zeros_like(x_t)
+                v = None
+                C = Coef_C(x_t_fp)
+                #print(torch.squeeze(dtx), torch.squeeze(dty))
+                x_t_fp, v = advance_time(x_t_fp, v, dt, Gamma, A, C, D)
+            else:
+                v, C = args
+                v = v.to(compute_dtype)
+                C = C.to(compute_dtype)
 
-            C_new = Coef_C(x_t)
-            v = v + Gamma**0.5 * ( C_new - C) *dt
+                x_t_fp, v = advance_time(x_t_fp, v, dt / 2, Gamma, A, C, D)
 
-            x_t, v = advance_time(x_t, v, dt/2, Gamma, A, C, D)
+                C_new = Coef_C(x_t_fp)
+                v = v + Gamma**0.5 * (C_new - C) * dt
 
-            C = C_new
+                x_t_fp, v = advance_time(x_t_fp, v, dt / 2, Gamma, A, C, D)
 
-        return x_t, (v, C)
+                C = C_new
+
+            x_t_out = x_t_fp.to(original_dtype)
+            v_out = v.to(original_dtype)
+            C_out = C.to(original_dtype)
+            return x_t_out, (v_out, C_out)
 
     def prepare_step_size(self, current_times, step_size, sigma_x, sigma_y):
         # -------------------------------------------------------------------------
