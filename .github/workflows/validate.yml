@@ -6,8 +6,18 @@ on:
       - master
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: comfy-org/node-diff@main
+      - uses: comfy-org/node-diff@f800c0d2e0e7173faf82be60d67eece8ccb5ff7e
+        with:
+          base_ref: ${{ github.event.pull_request.base.ref }}
