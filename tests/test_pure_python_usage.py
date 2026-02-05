@@ -64,7 +64,10 @@ def test_pure_python_usage_smoke(*, is_flux: bool, is_flow: bool, sigma_val: flo
     latent_mask = torch.ones_like(x)
     latent_mask[:, :, 2:6, 2:6] = 0.0
 
-    current_times = _make_current_times_flow(flow_t=sigma) if (is_flux or is_flow) else _make_current_times_ve(sigma=sigma)
+    if is_flux or is_flow:
+        current_times = _make_current_times_flow(flow_t=sigma)
+    else:
+        current_times = _make_current_times_ve(sigma=sigma)
 
     out = engine(
         x,

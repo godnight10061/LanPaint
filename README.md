@@ -172,7 +172,8 @@ engine = LanPaintEngine(
     Lambda=1.0,
     Beta=1.0,
     StepSize=0.2,
-    IS_FLUX=False,  # set True for Flux/Flow-style models
+    IS_FLUX=False,  # Set to True for Flux-style models
+    IS_FLOW=False,  # Set to True for Flow-style models
 )
 
 x = torch.zeros((1, 4, 64, 64))
