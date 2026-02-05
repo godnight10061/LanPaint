@@ -48,7 +48,7 @@ def test_pure_python_usage_smoke_ve() -> None:
 
     x = torch.zeros((1, 4, 8, 8))
     latent_image = torch.ones_like(x)
-    noise = torch.zeros_like(x)
+    noise = torch.randn_like(x)
     sigma = torch.tensor([1.0])
 
     latent_mask = torch.ones_like(x)
@@ -90,7 +90,7 @@ def test_pure_python_usage_smoke_flux_flow() -> None:
 
     x = torch.zeros((1, 4, 8, 8))
     latent_image = torch.ones_like(x)
-    noise = torch.zeros_like(x)
+    noise = torch.randn_like(x)
     sigma = torch.tensor([0.5])  # flow time
 
     latent_mask = torch.ones_like(x)

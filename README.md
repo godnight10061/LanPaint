@@ -176,7 +176,7 @@ engine = LanPaintEngine(
 )
 
 x = torch.zeros((1, 4, 64, 64))
-latent_image = torch.zeros_like(x)
+latent_image = torch.ones_like(x)
 noise = torch.randn_like(x)
 sigma = torch.tensor([1.0])
 
@@ -198,7 +198,6 @@ out = engine(
     current_times,
     model_options={},
     seed=0,
-    n_steps=5,
 )
 print(out.shape)
 ```
