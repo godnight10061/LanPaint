@@ -1,11 +1,12 @@
 import torch
 import pytest
+from typing import Optional
 
 from src.LanPaint.lanpaint import LanPaint as LanPaintEngine
 
 
 class _DummySampling:
-    def noise_scaling(self, sigma, noise, latent_image):  # type: ignore[no-untyped-def]
+    def noise_scaling(self, sigma: torch.Tensor, noise: torch.Tensor, latent_image: torch.Tensor) -> torch.Tensor:
         return latent_image + noise * sigma
 
 
@@ -15,7 +16,13 @@ class _DummyModel:
         self.model_sampling = _DummySampling()
         self.seen_times: list[torch.Tensor] = []
 
-    def __call__(self, x, sigma, model_options=None, seed=None):  # type: ignore[no-untyped-def]
+    def __call__(
+        self,
+        x: torch.Tensor,
+        sigma: torch.Tensor,
+        model_options: Optional[dict] = None,
+        seed: Optional[int] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         self.seen_times.append(sigma.detach().clone())
         return x, x
 
@@ -31,7 +38,7 @@ def _make_current_times_ve(*, sigma: torch.Tensor) -> tuple[torch.Tensor, torch.
 def _make_current_times_flow(*, flow_t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     one_minus_flow_t = 1.0 - flow_t
     abt = one_minus_flow_t**2 / (one_minus_flow_t**2 + flow_t**2)
-    ve_sigma = flow_t / one_minus_flow_t
+    ve_sigma = flow_t / (one_minus_flow_t + 1e-9)
     return ve_sigma, abt, flow_t
 
 
