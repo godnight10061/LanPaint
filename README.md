@@ -136,7 +136,7 @@ Where to look:
 Notes:
 - The sampler operates on latents (not PIL images).
 - `latent_mask` follows the ComfyUI convention: `1 = known/keep`, `0 = to inpaint`.
-- Your `Model` must be callable as `model(x, t, model_options=None, seed=None)` and return `(x0, x0_big)`. If your model predicts `eps`/`v`, convert to `x0` first.
+- Your `Model` must be callable as `model(x, sigma, model_options=None, seed=None)` and return `(x0, x0_big)`. If your model predicts `eps`/`v`, convert to `x0` first.
 - Import path: if you `pip install .`, import from `LanPaint.*` (not `src.LanPaint.*`). The snippet below assumes you're running from a repo checkout with the repo root on `PYTHONPATH` (as ComfyUI does).
 
 Time variables:
