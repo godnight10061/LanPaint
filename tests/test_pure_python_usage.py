@@ -54,9 +54,10 @@ def _make_current_times_flow(*, flow_t: torch.Tensor) -> tuple[torch.Tensor, tor
 def test_pure_python_usage_smoke(*, is_flux: bool, is_flow: bool, sigma_val: float) -> None:
     torch.manual_seed(0)
     model = _DummyModel()
+    n_inner_steps = 2
     engine = LanPaintEngine(
         model,
-        NSteps=2,
+        NSteps=n_inner_steps,
         Friction=15.0,
         Lambda=1.0,
         Beta=1.0,
@@ -87,10 +88,10 @@ def test_pure_python_usage_smoke(*, is_flux: bool, is_flow: bool, sigma_val: flo
         current_times,
         model_options={},
         seed=0,
-        n_steps=2,
+        n_steps=n_inner_steps,
     )
     assert out.shape == x.shape
     assert torch.isfinite(out).all()
     assert torch.equal(out[latent_mask == 1.0], latent_image[latent_mask == 1.0])
-    assert len(model.seen_times) == 3
+    assert len(model.seen_times) == n_inner_steps + 1
     assert all(torch.allclose(t, sigma) for t in model.seen_times)
