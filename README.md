@@ -65,6 +65,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
 ## Table of Contents
 - [Features](#features)
 - [Quickstart](#quickstart)
+- [Pure Python Usage (no ComfyUI)](#pure-python-usage-no-comfyui)
 - [How to Use Examples](#how-to-use-examples)
 - [Video Examples (Beta)](#video-examples-beta)
   - [Wan 2.2 Video Inpainting](#wan-22-video-inpainting)
@@ -123,6 +124,88 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
 
 Once installed, you'll find the LanPaint nodes under the "sampling" category in ComfyUI. Use them just like the default KSampler for high-quality inpainting!
 
+
+## Pure Python Usage (no ComfyUI)
+
+This repository is primarily a ComfyUI extension, but the core sampler is plain Python in `src/LanPaint/lanpaint.py` and can be called directly from your own code.
+
+Where to look:
+- Core sampler / math: `src/LanPaint/lanpaint.py`
+- ComfyUI adapter (mask convention + time variables): `src/LanPaint/nodes.py`
+
+Notes:
+- The sampler operates on latents (not PIL images).
+- `latent_mask` follows the ComfyUI convention: `1 = known/keep`, `0 = to inpaint`.
+- Your `Model` must be callable as `model(x, t, model_options=None, seed=None)` and return `(x0, x0_big)`. If your model predicts `eps`/`v`, convert to `x0` first.
+- Import path: if you `pip install .`, import from `LanPaint.*` (not `src.LanPaint.*`). The snippet below assumes you're running from a repo checkout with the repo root on `PYTHONPATH` (as ComfyUI does).
+
+Time variables:
+- `current_times` is always `(VE_Sigma, abt, flow_t)`.
+- If `IS_FLUX` or `IS_FLOW`: `sigma` is `flow_t` in `(0, 1)`, `abt = (1-t)^2/((1-t)^2+t^2)`, `VE_Sigma = t/(1-t)`.
+- Otherwise: `sigma` is `VE_Sigma`, `abt = 1/(1+sigma^2)`, `flow_t = sqrt(1-abt)/(sqrt(1-abt)+sqrt(abt))`.
+
+Minimal smoke test (CPU, no ComfyUI):
+```python
+import torch
+
+from src.LanPaint.lanpaint import LanPaint as LanPaintEngine
+
+
+class _DummySampling:
+    def noise_scaling(self, sigma, noise, latent_image):
+        return latent_image + noise * sigma
+
+
+class _DummyModel:
+    def __init__(self) -> None:
+        self.inner_model = self
+        self.model_sampling = _DummySampling()
+
+    def __call__(self, x, sigma, model_options=None, seed=None):
+        return x, x
+
+
+engine = LanPaintEngine(
+    _DummyModel(),
+    NSteps=5,
+    Friction=15.0,
+    Lambda=1.0,
+    Beta=1.0,
+    StepSize=0.2,
+    IS_FLUX=False,  # set True for Flux/Flow-style models
+)
+
+x = torch.zeros((1, 4, 64, 64))
+latent_image = torch.zeros_like(x)
+noise = torch.randn_like(x)
+sigma = torch.tensor([1.0])
+
+latent_mask = torch.ones_like(x)  # 1 = known/keep
+latent_mask[:, :, 16:48, 16:48] = 0.0  # hole to inpaint
+
+# Time variables (see issue #77 for VP/VE/Flow notes)
+VE_Sigma = sigma
+abt = 1.0 / (1.0 + VE_Sigma**2)
+flow_t = torch.sqrt(1.0 - abt) / (torch.sqrt(1.0 - abt) + torch.sqrt(abt))
+current_times = (VE_Sigma, abt, flow_t)
+
+out = engine(
+    x,
+    latent_image,
+    noise,
+    sigma,
+    latent_mask,
+    current_times,
+    model_options={},
+    seed=0,
+    n_steps=5,
+)
+print(out.shape)
+```
+
+See `tests/test_pure_python_usage.py` for a deterministic runnable example (covers both VE and Flow/Flux time variables).
+
+If you want a diffusers-based Python benchmark / reference implementation, see [LanPaintBench](https://github.com/scraed/LanPaintBench) (and the VP/VE/Flow notes in issue #77).
 
 ## **How to Use Examples:**  
 1. Navigate to the **example** folder (i.e example_1), download all pictures.  
@@ -531,7 +614,7 @@ Submit a PR to add your tutorial/video here, or open an [Issue](https://github.c
 
 ## ToDo
 - Try Implement Detailer
-- ~~Provide inference code on without GUI.~~ Check our local Python benchmark code [LanPaintBench](https://github.com/scraed/LanPaintBench).
+- ~~Provide inference code on without GUI.~~ See [Pure Python Usage (no ComfyUI)](#pure-python-usage-no-comfyui) and [LanPaintBench](https://github.com/scraed/LanPaintBench).
 
 
 ## Citation
