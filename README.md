@@ -147,12 +147,13 @@ Time variables:
 Minimal smoke test (CPU, no ComfyUI):
 ```python
 import torch
+from typing import Optional
 
 from src.LanPaint.lanpaint import LanPaint as LanPaintEngine
 
 
 class _DummySampling:
-    def noise_scaling(self, sigma, noise, latent_image):
+    def noise_scaling(self, sigma: torch.Tensor, noise: torch.Tensor, latent_image: torch.Tensor) -> torch.Tensor:
         return latent_image + noise * sigma
 
 
@@ -161,7 +162,9 @@ class _DummyModel:
         self.inner_model = self
         self.model_sampling = _DummySampling()
 
-    def __call__(self, x, sigma, model_options=None, seed=None):
+    def __call__(
+        self, x: torch.Tensor, sigma: torch.Tensor, model_options: Optional[dict] = None, seed: Optional[int] = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         return x, x
 
 
