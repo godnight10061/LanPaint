@@ -12,8 +12,7 @@ def make_current_times_ve(*, sigma: torch.Tensor) -> tuple[torch.Tensor, torch.T
     """
     ve_sigma = sigma
     abt = 1.0 / (1.0 + ve_sigma**2)
-    sqrt_1_minus_abt = torch.sqrt(1.0 - abt)
-    flow_t = sqrt_1_minus_abt / (sqrt_1_minus_abt + torch.sqrt(abt))
+    flow_t = ve_sigma / (1.0 + ve_sigma)
     return ve_sigma, abt, flow_t
 
 
