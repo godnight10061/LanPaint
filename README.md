@@ -141,7 +141,7 @@ Notes:
 
 Time variables:
 - `current_times` is always `(VE_Sigma, abt, flow_t)`.
-- If `IS_FLUX` or `IS_FLOW`: `sigma` is `flow_t` in `(0, 1)`, `abt = (1-t)^2/((1-t)^2+t^2)`, `VE_Sigma = t/(1-t)`.
+- If `IS_FLUX` or `IS_FLOW`: `sigma` is `flow_t` in `(0, 1)`, `abt = (1-flow_t)^2/((1-flow_t)^2+flow_t^2)`, `VE_Sigma = flow_t/(1-flow_t)`.
 - Otherwise: `sigma` is `VE_Sigma`, `abt = 1/(1+sigma^2)`, `flow_t = sqrt(1-abt)/(sqrt(1-abt)+sqrt(abt))`.
 
 Minimal smoke test (CPU, no ComfyUI):
