@@ -159,6 +159,7 @@ class _DummySampling:
 
 class _DummyModel:
     def __init__(self) -> None:
+        # Mimic ComfyUI's model wrapper structure.
         self.inner_model = self
         self.model_sampling = _DummySampling()
 
