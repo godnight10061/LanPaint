@@ -145,8 +145,8 @@ Time variables:
   - `abt = (1 - flow_t)**2 / ((1 - flow_t)**2 + flow_t**2)`
   - `VE_Sigma = flow_t / torch.clamp(1.0 - flow_t, min=1e-9)` (note: `nodes.py` uses `flow_t/(1-flow_t)`; clamp is recommended for direct use)
 - Otherwise (for VE models), `sigma` is `VE_Sigma`. The other variables are calculated as:
-  - `abt = 1 / (1 + sigma**2)`
-  - `flow_t = sigma / (1 + sigma)`
+  - `abt = 1 / (1 + VE_Sigma**2)`
+  - `flow_t = VE_Sigma / (1 + VE_Sigma)`
 
 Minimal smoke test (CPU, no ComfyUI):
 ```python
