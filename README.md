@@ -216,6 +216,10 @@ out = engine(
     seed=0,
 )
 print(out.shape)
+
+# Verify that the known (unmasked) area is preserved.
+assert torch.equal(out[latent_mask == 1.0], latent_image[latent_mask == 1.0])
+print("Known area preserved successfully.")
 ```
 
 See `tests/test_pure_python_usage.py` for a deterministic runnable example (covers both VE and Flow/Flux time variables).
