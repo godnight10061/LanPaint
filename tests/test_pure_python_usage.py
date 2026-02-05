@@ -3,6 +3,7 @@ import pytest
 from typing import Optional
 
 from src.LanPaint.lanpaint import LanPaint as LanPaintEngine
+from src.LanPaint.timevars import make_current_times_flow, make_current_times_ve
 
 
 class _DummySampling:
@@ -25,21 +26,6 @@ class _DummyModel:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         self.seen_times.append(sigma.detach().clone())
         return x, x
-
-
-def _make_current_times_ve(*, sigma: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    ve_sigma = sigma
-    abt = 1.0 / (1.0 + ve_sigma**2)
-    sqrt_1_minus_abt = torch.sqrt(1.0 - abt)
-    flow_t = sqrt_1_minus_abt / (sqrt_1_minus_abt + torch.sqrt(abt))
-    return ve_sigma, abt, flow_t
-
-
-def _make_current_times_flow(*, flow_t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    one_minus_flow_t = 1.0 - flow_t
-    abt = one_minus_flow_t**2 / (one_minus_flow_t**2 + flow_t**2)
-    ve_sigma = flow_t / torch.clamp(one_minus_flow_t, min=1e-9)
-    return ve_sigma, abt, flow_t
 
 
 @pytest.mark.parametrize(
@@ -75,9 +61,9 @@ def test_pure_python_usage_smoke(*, is_flux: bool, is_flow: bool, sigma_val: flo
     latent_mask[:, :, 2:6, 2:6] = 0.0
 
     if is_flux or is_flow:
-        current_times = _make_current_times_flow(flow_t=sigma)
+        current_times = make_current_times_flow(flow_t=sigma)
     else:
-        current_times = _make_current_times_ve(sigma=sigma)
+        current_times = make_current_times_ve(sigma=sigma)
 
     out = engine(
         x,

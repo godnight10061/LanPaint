@@ -150,6 +150,7 @@ import torch
 from typing import Optional
 
 from LanPaint.lanpaint import LanPaint as LanPaintEngine
+from LanPaint.timevars import make_current_times_ve
 
 
 class _DummySampling:
@@ -173,7 +174,7 @@ engine = LanPaintEngine(
     _DummyModel(),
     NSteps=5,
     Friction=15.0,
-    Lambda=1.0,
+    Lambda=4.0,
     Beta=1.0,
     StepSize=0.2,
     IS_FLUX=False,  # Set to True for Flux-style models
@@ -189,11 +190,7 @@ latent_mask = torch.ones_like(x)  # 1 = known/keep
 latent_mask[:, :, 16:48, 16:48] = 0.0  # hole to inpaint
 
 # Time variables (see issue #77 for VP/VE/Flow notes)
-VE_Sigma = sigma
-abt = 1.0 / (1.0 + VE_Sigma**2)
-sqrt_1_minus_abt = torch.sqrt(1.0 - abt)
-flow_t = sqrt_1_minus_abt / (sqrt_1_minus_abt + torch.sqrt(abt))
-current_times = (VE_Sigma, abt, flow_t)
+current_times = make_current_times_ve(sigma=sigma)
 
 out = engine(
     x,
