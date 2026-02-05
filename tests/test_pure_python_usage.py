@@ -1,4 +1,5 @@
 import torch
+import pytest
 
 from src.LanPaint.lanpaint import LanPaint as LanPaintEngine
 
@@ -32,7 +33,16 @@ def _make_current_times_flow(*, flow_t: torch.Tensor) -> tuple[torch.Tensor, tor
     return ve_sigma, abt, flow_t
 
 
-def test_pure_python_usage_smoke_ve() -> None:
+@pytest.mark.parametrize(
+    ("is_flux", "is_flow", "sigma_val"),
+    [
+        (False, False, 1.0),
+        (True, False, 0.5),
+        (False, True, 0.5),
+    ],
+    ids=["ve", "flux", "flow"],
+)
+def test_pure_python_usage_smoke(*, is_flux: bool, is_flow: bool, sigma_val: float) -> None:
     torch.manual_seed(0)
     model = _DummyModel()
     engine = LanPaintEngine(
@@ -42,61 +52,19 @@ def test_pure_python_usage_smoke_ve() -> None:
         Lambda=1.0,
         Beta=1.0,
         StepSize=0.2,
-        IS_FLUX=False,
-        IS_FLOW=False,
+        IS_FLUX=is_flux,
+        IS_FLOW=is_flow,
     )
 
     x = torch.zeros((1, 4, 8, 8))
     latent_image = torch.ones_like(x)
     noise = torch.randn_like(x)
-    sigma = torch.tensor([1.0])
+    sigma = torch.tensor([sigma_val])  # VE sigma or flow_t (Flux/Flow)
 
     latent_mask = torch.ones_like(x)
     latent_mask[:, :, 2:6, 2:6] = 0.0
 
-    current_times = _make_current_times_ve(sigma=sigma)
-
-    out = engine(
-        x,
-        latent_image,
-        noise,
-        sigma,
-        latent_mask,
-        current_times,
-        model_options={},
-        seed=0,
-        n_steps=2,
-    )
-    assert out.shape == x.shape
-    assert torch.isfinite(out).all()
-    assert torch.equal(out[latent_mask == 1.0], latent_image[latent_mask == 1.0])
-    assert model.seen_times
-    assert torch.allclose(model.seen_times[-1].float().mean(), sigma.float().mean())
-
-
-def test_pure_python_usage_smoke_flux_flow() -> None:
-    torch.manual_seed(0)
-    model = _DummyModel()
-    engine = LanPaintEngine(
-        model,
-        NSteps=2,
-        Friction=15.0,
-        Lambda=1.0,
-        Beta=1.0,
-        StepSize=0.2,
-        IS_FLUX=True,
-        IS_FLOW=False,
-    )
-
-    x = torch.zeros((1, 4, 8, 8))
-    latent_image = torch.ones_like(x)
-    noise = torch.randn_like(x)
-    sigma = torch.tensor([0.5])  # flow time
-
-    latent_mask = torch.ones_like(x)
-    latent_mask[:, :, 2:6, 2:6] = 0.0
-
-    current_times = _make_current_times_flow(flow_t=sigma)
+    current_times = _make_current_times_flow(flow_t=sigma) if (is_flux or is_flow) else _make_current_times_ve(sigma=sigma)
 
     out = engine(
         x,
