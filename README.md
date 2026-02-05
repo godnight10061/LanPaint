@@ -200,8 +200,10 @@ sigma = torch.tensor([1.0])  # VE sigma for VE models, or flow_t for Flow/Flux m
 latent_mask = torch.ones_like(x)  # 1 = known/keep
 latent_mask[:, :, 16:48, 16:48] = 0.0  # hole to inpaint
 
-# Time variables (see issue #77 for VP/VE/Flow notes)
-current_times = make_current_times_ve(sigma=sigma)  # For Flow/Flux models, set sigma to a value in (0,1) and use make_current_times_flow(flow_t=sigma)
+# Time variables (see issue #77 for VP/VE/Flow notes).
+# This example uses VE time variables. For Flow/Flux models, use the commented-out line below.
+current_times = make_current_times_ve(sigma=sigma)
+# current_times = make_current_times_flow(flow_t=sigma)  # For Flow/Flux, use a sigma in (0,1)
 
 out = engine(
     x,
