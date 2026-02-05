@@ -141,7 +141,7 @@ Notes:
 
 Time variables:
 - `current_times` is always `(VE_Sigma, abt, flow_t)`.
-- If `IS_FLUX` or `IS_FLOW`: `sigma` is `flow_t` in `(0, 1)`, `abt = (1-flow_t)^2/((1-flow_t)^2+flow_t^2)`, `VE_Sigma = flow_t/torch.clamp(1.0-flow_t, min=1e-9)` (avoid divide-by-zero at the tail).
+- If `IS_FLUX` or `IS_FLOW`: `sigma` is `flow_t` in `(0, 1)`, `abt = (1-flow_t)^2/((1-flow_t)^2+flow_t^2)`, `VE_Sigma = flow_t/torch.clamp(1.0-flow_t, min=1e-9)` (nodes.py uses `flow_t/(1-flow_t)`; clamp recommended for direct use).
 - Otherwise: `sigma` is `VE_Sigma`, `abt = 1/(1+sigma^2)`, `flow_t = sqrt(1-abt)/(sqrt(1-abt)+sqrt(abt))`.
 
 Minimal smoke test (CPU, no ComfyUI):
@@ -182,7 +182,7 @@ engine = LanPaintEngine(
 x = torch.zeros((1, 4, 64, 64))
 latent_image = torch.ones_like(x)
 noise = torch.randn_like(x)
-sigma = torch.tensor([1.0])
+sigma = torch.tensor([1.0])  # VE sigma for VE models, or flow_t for Flow/Flux models
 
 latent_mask = torch.ones_like(x)  # 1 = known/keep
 latent_mask[:, :, 16:48, 16:48] = 0.0  # hole to inpaint
