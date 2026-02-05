@@ -135,6 +135,7 @@ Where to look:
 
 Notes:
 - The sampler operates on latents (not PIL images).
+- Device: the example runs on CPU. For GPU usage, keep your model and tensors on the same device (e.g., `device = torch.device("cuda")`; `x = x.to(device)`).
 - `latent_mask` follows the ComfyUI convention: `1 = known/keep`, `0 = to inpaint`.
 - Your `Model` must be callable as `model(x, sigma, model_options=None, seed=None)` and return `(x0, x0_big)`. `x0_big` can be the same as `x0` (ComfyUI uses it for a 2nd CFG pass via `LanPaint_PromptMode`). If your model predicts `eps`/`v`, convert to `x0` first.
 - Import path: if you `pip install .` (or `pip install -e .`), import from `LanPaint.*`. If you're running from a repo checkout without installing, use `src.LanPaint.*` instead.
@@ -154,7 +155,7 @@ import torch
 from typing import Optional
 
 from LanPaint.lanpaint import LanPaint as LanPaintEngine
-from LanPaint.timevars import make_current_times_ve
+from LanPaint.timevars import make_current_times_flow, make_current_times_ve
 
 
 class _DummySampling:
@@ -194,7 +195,7 @@ latent_mask = torch.ones_like(x)  # 1 = known/keep
 latent_mask[:, :, 16:48, 16:48] = 0.0  # hole to inpaint
 
 # Time variables (see issue #77 for VP/VE/Flow notes)
-current_times = make_current_times_ve(sigma=sigma)
+current_times = make_current_times_ve(sigma=sigma)  # For Flow/Flux models, use make_current_times_flow(flow_t=sigma)
 
 out = engine(
     x,
