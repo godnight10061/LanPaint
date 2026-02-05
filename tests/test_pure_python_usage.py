@@ -23,13 +23,15 @@ class _DummyModel:
 def _make_current_times_ve(*, sigma: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     ve_sigma = sigma
     abt = 1.0 / (1.0 + ve_sigma**2)
-    flow_t = torch.sqrt(1.0 - abt) / (torch.sqrt(1.0 - abt) + torch.sqrt(abt))
+    sqrt_1_minus_abt = torch.sqrt(1.0 - abt)
+    flow_t = sqrt_1_minus_abt / (sqrt_1_minus_abt + torch.sqrt(abt))
     return ve_sigma, abt, flow_t
 
 
 def _make_current_times_flow(*, flow_t: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    abt = (1.0 - flow_t) ** 2 / ((1.0 - flow_t) ** 2 + flow_t**2)
-    ve_sigma = flow_t / (1.0 - flow_t)
+    one_minus_flow_t = 1.0 - flow_t
+    abt = one_minus_flow_t**2 / (one_minus_flow_t**2 + flow_t**2)
+    ve_sigma = flow_t / one_minus_flow_t
     return ve_sigma, abt, flow_t
 
 
@@ -83,5 +85,5 @@ def test_pure_python_usage_smoke(*, is_flux: bool, is_flow: bool, sigma_val: flo
     assert out.shape == x.shape
     assert torch.isfinite(out).all()
     assert torch.equal(out[latent_mask == 1.0], latent_image[latent_mask == 1.0])
-    assert model.seen_times
-    assert torch.allclose(model.seen_times[-1].float().mean(), sigma.float().mean())
+    assert len(model.seen_times) == 3
+    assert all(torch.allclose(t, sigma) for t in model.seen_times)

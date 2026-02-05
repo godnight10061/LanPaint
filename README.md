@@ -187,7 +187,8 @@ latent_mask[:, :, 16:48, 16:48] = 0.0  # hole to inpaint
 # Time variables (see issue #77 for VP/VE/Flow notes)
 VE_Sigma = sigma
 abt = 1.0 / (1.0 + VE_Sigma**2)
-flow_t = torch.sqrt(1.0 - abt) / (torch.sqrt(1.0 - abt) + torch.sqrt(abt))
+sqrt_1_minus_abt = torch.sqrt(1.0 - abt)
+flow_t = sqrt_1_minus_abt / (sqrt_1_minus_abt + torch.sqrt(abt))
 current_times = (VE_Sigma, abt, flow_t)
 
 out = engine(
