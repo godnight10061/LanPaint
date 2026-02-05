@@ -141,13 +141,19 @@ Notes:
 - Import path: if you `pip install .` (or `pip install -e .`), import from `LanPaint.*`. If you're running from a repo checkout without installing, use `src.LanPaint.*` instead.
 
 Time variables:
-- `current_times` is always `(VE_Sigma, abt, flow_t)`.
-- If `IS_FLUX` or `IS_FLOW`, `sigma` is `flow_t` in `(0, 1)`. The other variables are calculated as:
-  - `abt = (1 - flow_t)**2 / ((1 - flow_t)**2 + flow_t**2)`
-  - `VE_Sigma = flow_t / torch.clamp(1.0 - flow_t, min=1e-9)` (note: `nodes.py` uses `flow_t/(1-flow_t)`; clamp is recommended for direct use)
-- Otherwise (for VE models), `sigma` is `VE_Sigma`. The other variables are calculated as:
+The `LanPaintEngine` requires a `current_times` tuple of `(VE_Sigma, abt, flow_t)`. How you compute this depends on your model type, and the meaning of the `sigma` argument differs.
+
+**For VE models (e.g. Stable Diffusion):**
+- The `sigma` passed to the engine is the VE sigma (`VE_Sigma`).
+- Use `make_current_times_ve(sigma=sigma)` to get `current_times`. It calculates:
   - `abt = 1 / (1 + VE_Sigma**2)`
   - `flow_t = VE_Sigma / (1 + VE_Sigma)`
+
+**For Flow/Flux models:**
+- The `sigma` passed to the engine is `flow_t` in `(0, 1)`.
+- Use `make_current_times_flow(flow_t=sigma)` to get `current_times`. It calculates:
+  - `abt = (1 - flow_t)**2 / ((1 - flow_t)**2 + flow_t**2)`
+  - `VE_Sigma = flow_t / torch.clamp(1.0 - flow_t, min=1e-9)` (note: `nodes.py` uses `flow_t/(1-flow_t)`; clamp is recommended for direct use)
 
 Minimal smoke test (CPU, no ComfyUI):
 ```python
