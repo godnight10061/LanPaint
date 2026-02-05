@@ -74,7 +74,6 @@ def test_pure_python_usage_smoke(*, is_flux: bool, is_flow: bool, sigma_val: flo
         current_times,
         model_options={},
         seed=0,
-        n_steps=n_inner_steps,
     )
     assert out.shape == x.shape
     assert torch.isfinite(out).all()
