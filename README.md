@@ -137,7 +137,7 @@ Notes:
 - The sampler operates on latents (not PIL images).
 - `latent_mask` follows the ComfyUI convention: `1 = known/keep`, `0 = to inpaint`.
 - Your `Model` must be callable as `model(x, sigma, model_options=None, seed=None)` and return `(x0, x0_big)`. If your model predicts `eps`/`v`, convert to `x0` first.
-- Import path: if you `pip install .`, import from `LanPaint.*` (not `src.LanPaint.*`). The snippet below assumes you're running from a repo checkout with the repo root on `PYTHONPATH` (as ComfyUI does).
+- Import path: if you `pip install .` (or `pip install -e .`), import from `LanPaint.*`. If you're running from a repo checkout without installing, use `src.LanPaint.*` instead.
 
 Time variables:
 - `current_times` is always `(VE_Sigma, abt, flow_t)`.
@@ -149,7 +149,7 @@ Minimal smoke test (CPU, no ComfyUI):
 import torch
 from typing import Optional
 
-from src.LanPaint.lanpaint import LanPaint as LanPaintEngine
+from LanPaint.lanpaint import LanPaint as LanPaintEngine
 
 
 class _DummySampling:
