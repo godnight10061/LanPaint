@@ -6,7 +6,8 @@ import torch
 from diffusers import StableDiffusionPipeline
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR))
 
 from src.LanPaint.integrations.diffusers import inpaint_sd_ve_lanpaint_euler_karras
 
@@ -23,8 +24,8 @@ def main() -> None:
         pipe.safety_checker = None
         pipe.requires_safety_checker = False
 
-    init_image = Image.open("examples/Example_1/Original_No_Mask.png").convert("RGB")
-    mask_image = Image.open("examples/Example_1/Masked_Load_Me_in_Loader.png").convert("RGBA")
+    init_image = Image.open(ROOT_DIR / "examples/Example_1/Original_No_Mask.png").convert("RGB")
+    mask_image = Image.open(ROOT_DIR / "examples/Example_1/Masked_Load_Me_in_Loader.png").convert("RGBA")
 
     prompt = "basketball, masterpiece, high score, great score, absurdres"
     negative = (
@@ -52,8 +53,9 @@ def main() -> None:
         height=720,
     )
 
-    os.makedirs("output", exist_ok=True)
-    out_path = "output/diffusers_lanpaint_example1_sd15.png"
+    out_dir = ROOT_DIR / "output"
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = out_dir / "diffusers_lanpaint_example1_sd15.png"
     out.save(out_path)
     print(f"Saved: {out_path}")
 
