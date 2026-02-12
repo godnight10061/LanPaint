@@ -435,6 +435,16 @@ Same as default ComfyUI KSampler - simply replace with LanPaint KSampler nodes. 
 - LanPaint requires binary masks (values of 0 or 1) without opacity or smoothing. To ensure compatibility, set the mask's **opacity and hardness to maximum** in your mask editor. During inpainting, any mask with smoothing or gradients will automatically be converted to a binary mask.
 - LanPaint relies heavily on your text prompts to guide inpainting - explicitly describe the content you want generated in the masked area. If results show artifacts or mismatched elements, counteract them with targeted negative prompts.
 
+## Diffusers (experimental, pure Python)
+
+This repo is primarily a ComfyUI extension, but the core sampler is plain Python and can also be used from a diffusers-style sampling loop.
+
+See `src/LanPaint/diffusers.py` (`lanpaint_diffusers_inpaint_latents`) and `tests/test_diffusers_inpaint_latents.py` for a deterministic, runnable example.
+
+Conventions:
+- `mask_inpaint`: 1 = hole/inpaint, 0 = keep (diffusers convention).
+- `latent_image`: original latents to preserve in the keep region.
+
 ## Basic Sampler
 ![Samplers](https://github.com/scraed/LanPaint/blob/master/Nodes.JPG)  
 
