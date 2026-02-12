@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import torch
@@ -10,6 +10,10 @@ from ...euler import euler_step_sigma
 from ...lanpaint import LanPaint as LanPaintEngine
 from ...masks import alpha_to_keep_mask, resize_keep_mask_to_latents
 from ...timevars import make_current_times_ve
+
+if TYPE_CHECKING:
+    from diffusers import StableDiffusionPipeline
+    from PIL.Image import Image as PILImage
 
 
 def _require_diffusers():  # type: ignore[no-untyped-def]
@@ -123,9 +127,9 @@ def _mask_blend(
 
 def inpaint_sd_ve_lanpaint_euler_karras(  # noqa: PLR0913 (API surface)
     *,
-    pipe,  # StableDiffusionPipeline
-    init_image,  # PIL.Image.Image
-    mask_image,  # PIL.Image.Image (RGBA preferred; alpha used when present)
+    pipe: "StableDiffusionPipeline",
+    init_image: "PILImage",
+    mask_image: "PILImage",
     prompt: str,
     negative_prompt: str = "",
     seed: int = 0,
@@ -140,7 +144,7 @@ def inpaint_sd_ve_lanpaint_euler_karras(  # noqa: PLR0913 (API surface)
     blend_overlap: Optional[int] = None,
     width: Optional[int] = None,
     height: Optional[int] = None,
-):
+) -> "PILImage":
     """Training-free inpainting via LanPaint + diffusers Stable Diffusion (VE).
 
     Notes:
