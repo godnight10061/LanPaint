@@ -83,7 +83,7 @@ class _DiffusersX0VEModel:
 
         # CFG in a single UNet forward.
         latent_in = torch.cat([x_in] * 2)
-        if timestep.ndim == 0:
+        if timestep.ndim == 0 or timestep.numel() == 1:
             t_in = timestep.expand(latent_in.shape[0])
         else:
             t_in = timestep
