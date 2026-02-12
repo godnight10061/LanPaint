@@ -101,6 +101,9 @@ class _DiffusersX0VEModel:
 
 
 def _gaussian_kernel(*, kernel_size: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+    if kernel_size <= 1:
+        return torch.ones((1, 1), device=device, dtype=dtype)
+
     sigma = (kernel_size - 1) / 4
     x = torch.arange(kernel_size, device=device, dtype=dtype) - kernel_size // 2
     y = torch.arange(kernel_size, device=device, dtype=dtype) - kernel_size // 2
