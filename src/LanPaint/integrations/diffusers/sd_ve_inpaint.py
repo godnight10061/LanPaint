@@ -16,6 +16,9 @@ if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
 
 
+PROMPT_FIRST_GUIDANCE_SCALE_BIG = -0.5
+
+
 def _require_diffusers():  # type: ignore[no-untyped-def]
     try:
         from diffusers import EulerDiscreteScheduler, StableDiffusionPipeline  # noqa: F401
@@ -205,7 +208,7 @@ def inpaint_sd_ve_lanpaint_euler_karras(  # noqa: PLR0913 (API surface)
             negative_prompt=negative_prompt,
         )
 
-    guidance_scale_big = cfg if prompt_mode.lower() == "image_first" else -0.5
+    guidance_scale_big = cfg if prompt_mode.lower() == "image_first" else PROMPT_FIRST_GUIDANCE_SCALE_BIG
 
     model = _DiffusersX0VEModel(
         unet=pipe.unet,
