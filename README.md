@@ -65,6 +65,7 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
 ## Table of Contents
 - [Features](#features)
 - [Quickstart](#quickstart)
+- [Pure Python Usage (no ComfyUI)](#pure-python-usage-no-comfyui)
 - [How to Use Examples](#how-to-use-examples)
 - [Video Examples (Beta)](#video-examples-beta)
   - [Wan 2.2 Video Inpainting](#wan-22-video-inpainting)
@@ -123,6 +124,107 @@ Check our latest [Wan 2.2 Video Examples](#video-examples-beta), [Wan 2.2 Image 
 
 Once installed, you'll find the LanPaint nodes under the "sampling" category in ComfyUI. Use them just like the default KSampler for high-quality inpainting!
 
+
+## Pure Python Usage (no ComfyUI)
+
+This repository is primarily a ComfyUI extension, but the core sampler is plain Python in `src/LanPaint/lanpaint.py` and can be called directly from your own code.
+
+Where to look:
+- Core sampler / math: `src/LanPaint/lanpaint.py`
+- ComfyUI adapter (mask convention + time variables): `src/LanPaint/nodes.py`
+
+Notes:
+- The sampler operates on latents (not PIL images).
+- Device: the example runs on CPU. For GPU usage, keep your model and tensors on the same device (e.g., `device = torch.device("cuda")`; `x = x.to(device)`).
+- `latent_mask` follows the ComfyUI convention: `1 = known/keep`, `0 = to inpaint`.
+- Your `Model` must be callable as `model(x, sigma, model_options=None, seed=None)` and return `(x0, x0_big)`. `x0_big` can be the same as `x0` (ComfyUI uses it for a 2nd CFG pass via `LanPaint_PromptMode`). If your model predicts `eps`/`v`, convert to `x0` first.
+- Import path: if you `pip install .` (or `pip install -e .`), import from `LanPaint.*`. If you're running from a repo checkout without installing, use `src.LanPaint.*` instead.
+
+Time variables:
+The `LanPaintEngine` requires a `current_times` tuple of `(VE_Sigma, abt, flow_t)`. How you compute this depends on your model type, and the meaning of the `sigma` argument differs.
+
+**For VE models (e.g. Stable Diffusion):**
+- The `sigma` passed to the engine is the VE sigma (`VE_Sigma`).
+- Use `make_current_times_ve(sigma=sigma)` to get `current_times`. It calculates:
+  - `abt = 1 / (1 + VE_Sigma**2)`
+  - `flow_t = VE_Sigma / (1 + VE_Sigma)`
+
+**For Flow/Flux models:**
+- The `sigma` passed to the engine is `flow_t` in `(0, 1)`.
+- Use `make_current_times_flow(flow_t=sigma)` to get `current_times`. It calculates:
+  - `abt = (1 - flow_t)**2 / ((1 - flow_t)**2 + flow_t**2)`
+  - `VE_Sigma = flow_t / torch.clamp(1.0 - flow_t, min=1e-9)` (note: `nodes.py` uses `flow_t/(1-flow_t)`; clamp is recommended for direct use)
+
+Minimal smoke test (CPU, no ComfyUI):
+```python
+import torch
+from typing import Optional
+
+from LanPaint.lanpaint import LanPaint as LanPaintEngine
+from LanPaint.timevars import make_current_times_flow, make_current_times_ve
+
+
+class _DummySampling:
+    def noise_scaling(self, sigma: torch.Tensor, noise: torch.Tensor, latent_image: torch.Tensor) -> torch.Tensor:
+        return latent_image + noise * sigma
+
+
+class _DummyModel:
+    def __init__(self) -> None:
+        # Mimic ComfyUI's model wrapper structure.
+        self.inner_model = self
+        self.model_sampling = _DummySampling()
+
+    def __call__(
+        self, x: torch.Tensor, sigma: torch.Tensor, model_options: Optional[dict] = None, seed: Optional[int] = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return x, x
+
+
+engine = LanPaintEngine(
+    _DummyModel(),
+    NSteps=5,
+    Friction=15.0,
+    Lambda=4.0,
+    Beta=1.0,
+    StepSize=0.2,
+    IS_FLUX=False,  # Set to True for Flux-style models
+    IS_FLOW=False,  # Set to True for Flow-style models
+)
+
+x = torch.zeros((1, 4, 64, 64))
+latent_image = torch.ones_like(x)
+noise = torch.randn_like(x)
+sigma = torch.tensor([1.0])  # VE sigma for VE models, or flow_t for Flow/Flux models
+
+latent_mask = torch.ones_like(x)  # 1 = known/keep
+latent_mask[:, :, 16:48, 16:48] = 0.0  # hole to inpaint
+
+# Time variables (see issue #77 for VP/VE/Flow notes).
+# This example uses VE time variables. For Flow/Flux models, use the commented-out line below.
+current_times = make_current_times_ve(sigma=sigma)
+# current_times = make_current_times_flow(flow_t=sigma)  # For Flow/Flux, use a sigma in (0,1)
+
+out = engine(
+    x,
+    latent_image,
+    noise,
+    sigma,
+    latent_mask,
+    current_times,
+    model_options={},
+    seed=0,
+)
+print(out.shape)
+
+# Verify that the known (unmasked) area is preserved.
+assert torch.equal(out[latent_mask == 1.0], latent_image[latent_mask == 1.0])
+print("Known area preserved successfully.")
+```
+
+See `tests/test_pure_python_usage.py` for a deterministic runnable example (covers both VE and Flow/Flux time variables).
+
+If you want a diffusers-based Python benchmark / reference implementation, see [LanPaintBench](https://github.com/scraed/LanPaintBench) (and the VP/VE/Flow notes in issue #77).
 
 ## **How to Use Examples:**  
 1. Navigate to the **example** folder (i.e example_1), download all pictures.  
@@ -531,7 +633,7 @@ Submit a PR to add your tutorial/video here, or open an [Issue](https://github.c
 
 ## ToDo
 - Try Implement Detailer
-- ~~Provide inference code on without GUI.~~ Check our local Python benchmark code [LanPaintBench](https://github.com/scraed/LanPaintBench).
+- ~~Provide inference code on without GUI.~~ See [Pure Python Usage (no ComfyUI)](#pure-python-usage-no-comfyui) and [LanPaintBench](https://github.com/scraed/LanPaintBench).
 
 
 ## Citation
