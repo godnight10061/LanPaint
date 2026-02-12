@@ -168,22 +168,21 @@ def inpaint_sd_ve_lanpaint_euler_karras(  # noqa: PLR0913 (API surface)
     device: torch.device = unet_param.device
     dtype: torch.dtype = unet_param.dtype
 
-    if width is not None or height is not None:
-        if width is None or height is None:
-            raise ValueError("width and height must be provided together")
-        init_image = init_image.resize((width, height), resample=Image.Resampling.LANCZOS)
-        mask_image = mask_image.resize((width, height), resample=Image.Resampling.NEAREST)
-    else:
+    if width is None and height is None:
         width, height = init_image.size
+    elif width is None or height is None:
+        raise ValueError("width and height must be provided together")
 
     width = int(width)
     height = int(height)
-    width8 = width - (width % 8)
-    height8 = height - (height % 8)
-    if (width8, height8) != (width, height):
-        init_image = init_image.resize((width8, height8), resample=Image.Resampling.LANCZOS)
-        mask_image = mask_image.resize((width8, height8), resample=Image.Resampling.NEAREST)
-        width, height = width8, height8
+    width = width - (width % 8)
+    height = height - (height % 8)
+    if width <= 0 or height <= 0:
+        raise ValueError("width and height must be at least 8 pixels")
+
+    if (width, height) != init_image.size:
+        init_image = init_image.resize((width, height), resample=Image.Resampling.LANCZOS)
+        mask_image = mask_image.resize((width, height), resample=Image.Resampling.NEAREST)
 
     # Encode init image to latents (deterministic: mode/mean).
     image_tensor = pipe.image_processor.preprocess(init_image).to(device=device, dtype=dtype)
