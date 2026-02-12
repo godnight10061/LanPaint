@@ -224,7 +224,19 @@ print("Known area preserved successfully.")
 
 See `tests/test_pure_python_usage.py` for a deterministic runnable example (covers both VE and Flow/Flux time variables).
 
-If you want a diffusers-based Python benchmark / reference implementation, see [LanPaintBench](https://github.com/scraed/LanPaintBench) (and the VP/VE/Flow notes in issue #77).
+If you want a diffusers-based Python benchmark, see [LanPaintBench](https://github.com/scraed/LanPaintBench) (and the VP/VE/Flow notes in issue #77).
+
+### Diffusers inpaint demo (Stable Diffusion, no ComfyUI)
+
+This repo also includes an optional diffusers integration for Stable Diffusion (VE) plus a runnable demo:
+```bash
+python scripts/diffusers_inpaint_example1.py
+```
+
+Notes:
+- The demo uses `examples/Example_1` assets and ComfyUI-style RGBA masks (PNG alpha). Transparent = inpaint, opaque = keep.
+- Output is written to `output/diffusers_lanpaint_example1_sd15.png`.
+- Programmatic entry point: `LanPaint.integrations.diffusers.inpaint_sd_ve_lanpaint_euler_karras` (or `src.LanPaint...` from a repo checkout).
 
 ## **How to Use Examples:**  
 1. Navigate to the **example** folder (i.e example_1), download all pictures.  
