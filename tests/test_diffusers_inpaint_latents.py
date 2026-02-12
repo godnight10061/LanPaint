@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 import torch
 
 from src.LanPaint.diffusers import lanpaint_diffusers_inpaint_latents
@@ -115,4 +116,124 @@ def test_lanpaint_diffusers_inpaint_latents_preserves_known_and_cfg_affects_hole
     # Ensure we passed scheduler timesteps (not sigmas) through to the UNet.
     seen = {float(t.mean().item()) for t in unet2.seen_timesteps}
     assert seen == {1.0, 2.0}
+
+
+def test_lanpaint_diffusers_inpaint_latents_negative_prompt_none_disables_cfg() -> None:
+    torch.manual_seed(0)
+    unet = _DummyUNet()
+    scheduler = _DummySigmaScheduler()
+
+    latents = torch.zeros((1, 4, 8, 8), dtype=torch.float32)
+    latent_image = torch.ones_like(latents)
+    noise = torch.randn_like(latents)
+
+    mask_inpaint = torch.zeros((1, 1, 8, 8), dtype=torch.float32)
+    mask_inpaint[:, :, 2:6, 2:6] = 1.0
+
+    prompt_embeds = torch.ones((1, 4), dtype=torch.float32)
+
+    out_cfg1 = lanpaint_diffusers_inpaint_latents(
+        unet=unet,
+        scheduler=scheduler,
+        latents=latents,
+        latent_image=latent_image,
+        mask_inpaint=mask_inpaint,
+        noise=noise,
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=None,
+        guidance_scale=1.0,
+        guidance_scale_big=1.0,
+        num_inference_steps=2,
+        lanpaint_n_steps=0,
+        seed=0,
+    )
+
+    out_cfg2 = lanpaint_diffusers_inpaint_latents(
+        unet=_DummyUNet(),
+        scheduler=_DummySigmaScheduler(),
+        latents=latents,
+        latent_image=latent_image,
+        mask_inpaint=mask_inpaint,
+        noise=noise,
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=None,
+        guidance_scale=2.0,
+        guidance_scale_big=2.0,
+        num_inference_steps=2,
+        lanpaint_n_steps=0,
+        seed=0,
+    )
+
+    assert torch.allclose(out_cfg1, out_cfg2)
+
+
+def test_lanpaint_diffusers_inpaint_latents_euler_scheduler_batch_uses_scalar_timestep() -> None:
+    diffusers = pytest.importorskip("diffusers")
+    EulerDiscreteScheduler = diffusers.EulerDiscreteScheduler  # noqa: N806
+
+    torch.manual_seed(0)
+    unet = _DummyUNet()
+    scheduler = EulerDiscreteScheduler(num_train_timesteps=100)
+
+    batch = 2
+    latents = torch.zeros((batch, 4, 8, 8), dtype=torch.float32)
+    latent_image = torch.ones_like(latents)
+    noise = torch.randn_like(latents)
+
+    mask_inpaint = torch.zeros((batch, 1, 8, 8), dtype=torch.float32)
+    mask_inpaint[:, :, 2:6, 2:6] = 1.0
+
+    prompt_embeds = torch.ones((batch, 4), dtype=torch.float32)
+    negative_prompt_embeds = torch.zeros((batch, 4), dtype=torch.float32)
+
+    out = lanpaint_diffusers_inpaint_latents(
+        unet=unet,
+        scheduler=scheduler,
+        latents=latents,
+        latent_image=latent_image,
+        mask_inpaint=mask_inpaint,
+        noise=noise,
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=negative_prompt_embeds,
+        guidance_scale=2.0,
+        guidance_scale_big=2.0,
+        num_inference_steps=1,
+        lanpaint_n_steps=0,
+        seed=0,
+    )
+
+    keep_mask = (1.0 - mask_inpaint).repeat(1, latents.shape[1], 1, 1)
+    assert out.shape == latents.shape
+    assert torch.equal(out[keep_mask == 1.0], latent_image[keep_mask == 1.0])
+
+
+def test_lanpaint_diffusers_inpaint_latents_is_no_grad() -> None:
+    unet = _DummyUNet()
+    scheduler = _DummySigmaScheduler()
+
+    latents = torch.zeros((1, 4, 8, 8), dtype=torch.float32, requires_grad=True)
+    latent_image = torch.ones_like(latents)
+    noise = torch.randn_like(latents)
+    mask_inpaint = torch.zeros((1, 1, 8, 8), dtype=torch.float32)
+
+    prompt_embeds = torch.ones((1, 4), dtype=torch.float32)
+    negative_prompt_embeds = torch.zeros((1, 4), dtype=torch.float32)
+
+    out = lanpaint_diffusers_inpaint_latents(
+        unet=unet,
+        scheduler=scheduler,
+        latents=latents,
+        latent_image=latent_image,
+        mask_inpaint=mask_inpaint,
+        noise=noise,
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=negative_prompt_embeds,
+        guidance_scale=1.0,
+        guidance_scale_big=1.0,
+        num_inference_steps=2,
+        lanpaint_n_steps=0,
+        seed=0,
+    )
+
+    assert not out.requires_grad
 

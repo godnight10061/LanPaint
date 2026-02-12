@@ -41,6 +41,28 @@ def _to_batch_tensor(value: torch.Tensor | float, *, batch: int, device: torch.d
     return torch.full((batch,), float(value), device=device, dtype=dtype)
 
 
+def _to_scalar_tensor(value: torch.Tensor | float, *, device: torch.device) -> torch.Tensor:
+    """Convert to a device tensor scalar.
+
+    Diffusers schedulers typically expect `timestep` to be a scalar (not a batch vector).
+    """
+
+    if isinstance(value, torch.Tensor):
+        t = value.to(device=device)
+        if t.ndim == 0:
+            return t
+        if t.numel() == 1:
+            return t.reshape(())
+        if t.ndim == 1:
+            first = t[0]
+            if not torch.all(t == first):
+                raise ValueError("Expected a scalar timestep, or a (batch,) tensor with identical values.")
+            return first.reshape(())
+        raise ValueError(f"Expected a scalar or (batch,) timestep tensor, got shape {tuple(t.shape)}")
+
+    return torch.tensor(value, device=device)
+
+
 def _prepare_keep_mask(*, mask_inpaint: torch.Tensor, latents: torch.Tensor) -> torch.Tensor:
     # Diffusers-style mask: 1 = hole/inpaint, 0 = keep.
     mask = (mask_inpaint > 0.5).to(device=latents.device, dtype=latents.dtype)
@@ -94,6 +116,7 @@ class _DiffusersEpsAdapter:
         self.inner_model = self
         self.model_sampling = _ModelSamplingVE()
 
+    @torch.no_grad()
     def __call__(
         self,
         x: torch.Tensor,
@@ -101,27 +124,29 @@ class _DiffusersEpsAdapter:
         model_options: Optional[dict[str, Any]] = None,
         seed: Optional[int] = None,  # noqa: ARG002
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        timestep = sigma
+        timestep: torch.Tensor | float = sigma
         if isinstance(model_options, dict) and "timestep" in model_options:
             timestep = model_options["timestep"]
 
-        t = _to_batch_tensor(timestep, batch=x.shape[0], device=x.device, dtype=sigma.dtype)
+        t = _to_scalar_tensor(timestep, device=x.device)
         x_in = self._cfg.scale_model_input(x, t)
 
-        if self._cfg.negative_prompt_embeds is None:
-            eps_uncond = torch.zeros_like(x)
-        else:
-            eps_uncond = _unet_output_to_tensor(
-                self._unet(x_in, t, encoder_hidden_states=self._cfg.negative_prompt_embeds, **dict(self._cfg.unet_kwargs))
-            )
+        big_scale = self._cfg.guidance_scale_big if self._cfg.guidance_scale_big is not None else self._cfg.guidance_scale
+        needs_cfg = (self._cfg.guidance_scale != 1.0) or (big_scale != 1.0)
 
         eps_cond = _unet_output_to_tensor(
             self._unet(x_in, t, encoder_hidden_states=self._cfg.prompt_embeds, **dict(self._cfg.unet_kwargs))
         )
 
+        if (not needs_cfg) or self._cfg.negative_prompt_embeds is None:
+            eps_uncond = eps_cond
+        else:
+            eps_uncond = _unet_output_to_tensor(
+                self._unet(x_in, t, encoder_hidden_states=self._cfg.negative_prompt_embeds, **dict(self._cfg.unet_kwargs))
+            )
+
         eps_delta = eps_cond - eps_uncond
         eps = eps_uncond + self._cfg.guidance_scale * eps_delta
-        big_scale = self._cfg.guidance_scale_big if self._cfg.guidance_scale_big is not None else self._cfg.guidance_scale
         eps_big = eps_uncond + big_scale * eps_delta
 
         sigma_view = _broadcast_sigma(sigma, x)
@@ -144,6 +169,7 @@ def _step_output_prev_sample(step_output: Any) -> torch.Tensor:
     raise TypeError("scheduler.step(...) must return an object/dict/tuple containing `prev_sample`.")
 
 
+@torch.no_grad()
 def lanpaint_diffusers_inpaint_latents(
     *,
     unet: Any,
