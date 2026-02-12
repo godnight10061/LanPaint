@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 PROMPT_FIRST_GUIDANCE_SCALE_BIG = -0.5
 
 
-def _require_diffusers():  # type: ignore[no-untyped-def]
+def _require_diffusers() -> None:
     try:
         from diffusers import EulerDiscreteScheduler, StableDiffusionPipeline  # noqa: F401
     except ModuleNotFoundError as exc:  # pragma: no cover
@@ -29,7 +29,7 @@ def _require_diffusers():  # type: ignore[no-untyped-def]
         ) from exc
 
 
-def _require_pillow():  # type: ignore[no-untyped-def]
+def _require_pillow() -> None:
     try:
         from PIL import Image  # noqa: F401
     except ModuleNotFoundError as exc:  # pragma: no cover

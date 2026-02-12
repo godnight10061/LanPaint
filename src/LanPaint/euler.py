@@ -9,10 +9,13 @@ def euler_step_sigma(*, x: torch.Tensor, x0: torch.Tensor, sigma_from: torch.Ten
         x_next = x + d * (sigma_next - sigma)
     """
 
-    if sigma_from.ndim != 0:
-        raise ValueError("sigma_from must be a scalar tensor")
-    if sigma_to.ndim != 0:
-        raise ValueError("sigma_to must be a scalar tensor")
+    if sigma_from.numel() != 1:
+        raise ValueError("sigma_from must be a scalar-like tensor")
+    if sigma_to.numel() != 1:
+        raise ValueError("sigma_to must be a scalar-like tensor")
+
+    sigma_from = sigma_from.reshape(())
+    sigma_to = sigma_to.reshape(())
 
     if torch.allclose(sigma_from, sigma_to):
         return x
